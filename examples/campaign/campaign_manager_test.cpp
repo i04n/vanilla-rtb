@@ -30,8 +30,7 @@
  *                              campaign_budget :
  *                              {
  *                                 "budget":1000000,
- *                                 "cpc":300000,
- *                                 "cpm":20000,
+ *                                 "metric" : { id:1 , name:"CPM" , "value":300000},
  *                                 "id":123,
  *                                 "spent":1000
  *                              },
@@ -76,9 +75,9 @@
 #include "config.hpp"
 #include "campaign_cache.hpp"
 #include "serialization.hpp"
-
-
+#include "campaign_budget_mapper.hpp"
 #include "rtb/core/core.hpp"
+#include "rtb/core/banker.hpp"
 
 extern void init_framework_logging(const std::string &) ;
 
@@ -88,6 +87,7 @@ int main(int argc, char *argv[]) {
     using restful_dispatcher_t =  http::crud::crud_dispatcher<http::server::request, http::server::reply> ;
     using CampaignCacheType  = CampaignCache<CampaignManagerConfig>;
     using CampaignBudgets = typename CampaignCacheType::DataCollection;
+    using CampaignBudgetMapper = DSL::campaign_budget_mapper<>;
     
 //    std::string Create;
 //    std::string Read;
@@ -116,6 +116,7 @@ int main(int argc, char *argv[]) {
     init_framework_logging(config.data().log_file_name);
 
     CampaignCacheType  cache(config);
+    core::Banker<BudgetManager> banker;
     try {
         cache.load();
     }
@@ -142,9 +143,12 @@ int main(int argc, char *argv[]) {
               .put([&](http::server::reply & r, const http::crud::crud_match<boost::cmatch> & match) {
               LOG(info) << "Create received cache update event url=" << match[0];
                 try {
-                    auto data = DSL::CampaignDSL<CampaignBudget>().extract_request(match.data);
+                    auto data = DSL::CampaignDSL<CampaignBudgetMapper>().extract_request(match.data);
                     uint32_t campaign_id = boost::lexical_cast<uint32_t>(match[2]);
                     create_commands[match[1]](data, campaign_id);
+                    //TODO: remove when done with testing
+                    auto value = banker.authorize(cache, campaign_id);
+                    LOG(info) << "Authorized bid for campaign_id=" << campaign_id << " is =" << value;
                 } catch (std::exception const& e) {
                     LOG(error) << e.what();
                 }
@@ -152,9 +156,12 @@ int main(int argc, char *argv[]) {
               .post([&](http::server::reply & r, const http::crud::crud_match<boost::cmatch> & match) {
                 LOG(info) << "Update received event url=" << match[0];
                 try {
-                    auto data = DSL::CampaignDSL<CampaignBudget>().extract_request(match.data);
+                    auto data = DSL::CampaignDSL<CampaignBudgetMapper>().extract_request(match.data);
                     uint32_t campaign_id = boost::lexical_cast<uint32_t>(match[2]);
                     update_commands[match[1]](data,campaign_id);
+                    //TODO: remove when done with testing
+                    auto value = banker.authorize(cache, campaign_id);
+                    LOG(info) << "Authorized bid for campaign_id=" << campaign_id << " is =" << value;
                 } catch (std::exception const& e) {
                     LOG(error) << e.what();
                 }
@@ -169,7 +176,7 @@ int main(int argc, char *argv[]) {
                 }
     });
     dispatcher.crud_match(boost::regex("/campaign/([A-Za-z/]+)(\\d*)"))
-              .get([&](http::server::reply & r, const http::crud::crud_match<boost::cmatch> & match) {
+        .get([&](http::server::reply & r, const http::crud::crud_match<boost::cmatch> & match) {
               LOG(info) << "Read received event url=" << match[0];
               try {
                   CampaignBudgets data;
@@ -180,15 +187,32 @@ int main(int argc, char *argv[]) {
                       campaign_id = boost::lexical_cast<uint32_t>(value);
                   }
                   read_commands[key](data, campaign_id? *campaign_id : 0 );
-                  r<< CampaignBudget::desc();
-                  for(auto &d : data) {
-                    r << boost::lexical_cast<std::string>(*d) << "\n";
+                  //TODO: put it into DSL
+                  jsonv::value response;
+                  if(campaign_id && !data.empty()) {
+                      response = DSL::CampaignDSL<CampaignBudgetMapper>().create_response(*data[0]);
+                  } else  {
+                      response = jsonv::array();
+                      for(auto &d : data) {
+                         response.push_back(DSL::CampaignDSL<CampaignBudgetMapper>().create_response(*d)) ;
+                      }
                   }
+                  r << jsonv::to_string(response);
+                  r << http::server::reply::flush("json");
+                  //for testing only , works with POST only and AngularJS still sends OPTIONS with DELETE, PUT
+                  r.headers.push_back(http::server::header("Access-Control-Allow-Origin", "*"));
               } catch (std::exception const& e) {
                   LOG(error) << e.what();
               }
     });
 
+    dispatcher.crud_match(boost::regex("/campaign/.*(\\.js|\\.html|\\.css|\\.jpg)" ))
+        .get([&](http::server::reply & r, const http::crud::crud_match<boost::cmatch> & match) {
+              LOG(info) << "Read HOME page received url=" << match[0];
+              http::server::request req;
+              req.uri = match[0];
+              http::server::request_handler(config.get("campaign-manager.root")).handle_request(req,r);
+    });
 
     auto host = config.get("campaign-manager.host");
     auto port = config.get("campaign-manager.port");

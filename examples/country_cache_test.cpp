@@ -1,8 +1,8 @@
 
 #include "core/tagged_tuple.hpp"
-#include "datacache/city_country_entity.hpp"
-#include "datacache/entity_cache.hpp"
-#include "datacache/memory_types.hpp"
+#include "examples/datacache/city_country_entity.hpp"
+#include "rtb/datacache/entity_cache.hpp"
+#include "rtb/datacache/memory_types.hpp"
 #include <chrono>
 #include <iterator>
 #include <fstream>
@@ -25,6 +25,7 @@ namespace po = boost::program_options;
 struct CityCountry {
     std::string city;
     std::string country;
+    uint32_t geo_id;
     std::string record;
     CityCountry(std::string city, std::string country) : city{std::move(city)}, country{std::move(country)} {}
     CityCountry() : city{}, country{} {}
@@ -60,7 +61,7 @@ auto random_pick(Container && c) {
 template<typename Keys, typename Cache>
 void populate_cache(const std::vector<CityCountry> &cities , Cache && cache) {
     for ( auto &value : cities ) {
-       if ( cache.insert(Keys{value.city, value.country}, value) ) {
+       if ( cache.insert(Keys{value.city, value.country}, value).second ) {
          LOG(info) << "inserted{" << value.city << "," << value.country << "} OK!" ; 
        } else {
           LOG(error) << "insert {" << value.city << "," << value.country << "} FAILED!" ;

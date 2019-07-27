@@ -1,0 +1,43 @@
+td input {width: 100%}
+
+.idWidth input {min-width: 55px}
+
+/*.budgetWidth input {max-width: 100px; min-width: 55px}*/
+
+/*.spentWidth input {max-width: 100px; min-width: 55px}*/
+
+/*.cpmWidth input {max-width: 100px; min-width: 55px}*/
+.cpmWidth select {max-width: 75px; min-width: 75px }
+
+#date {
+  color: #2b3541;
+  font-weight: bolder;
+}
+body {
+  padding-top: 500px;
+}
+
+.row-content {
+  margin: 0px auto;
+  padding: 50px 0px;
+  border-bottom: 1px ridge;
+  min-height: 400px;
+}
+
+
+
+.navbar {
+  background: #F3E5AB;
+  color: #ffffff;
+}
+
+
+
+body {
+  align: center;
+  padding: 50px 0px 0px 0px;
+  z-index: 0;
+}
+
+
+

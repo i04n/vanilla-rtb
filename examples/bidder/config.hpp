@@ -18,11 +18,15 @@ struct bidder_config_data {
     std::string geo_ipc_name;
     std::string geo_campaign_ipc_name;
     std::string geo_campaign_source;
-    std::string campaign_data_source;
-    std::string campaign_data_ipc_name;
+    std::string campaign_budget_source;
+    std::string ipc_name;
+    std::string key_value_host;
+    int key_value_port;
     int timeout;
     unsigned int concurrency;
     short port;
+    std::string host;
+    std::string root;
     short num_of_bidders;
     
     bidder_config_data() :
@@ -31,9 +35,10 @@ struct bidder_config_data {
         geo_ad_source{}, geo_ad_ipc_name{},
         geo_source{}, geo_ipc_name{}, geo_campaign_ipc_name{},
         geo_campaign_source{},
-        campaign_data_source{}, campaign_data_ipc_name{},
+        campaign_budget_source{}, ipc_name{},
+        key_value_host{}, key_value_port{}, 
         timeout{}, concurrency{},
-        port{}, num_of_bidders{}
+        port{}, host{}, root{}, num_of_bidders{}
     {}
 };
 using BidderConfig = vanilla::config::config<bidder_config_data>;

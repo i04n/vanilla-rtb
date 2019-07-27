@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <boost/program_options.hpp>
 #include <boost/program_options/options_description.hpp>
 
 namespace vanilla { namespace config {
@@ -60,7 +61,7 @@ namespace vanilla { namespace config {
         template <typename T = std::string>
         auto &get(const char *needle) noexcept(false) {
             try {
-                return vm[needle].as<T>();
+                return vm[needle].template as<T>();
             }
             catch(const boost::bad_any_cast &) {
                 std::stringstream ss;

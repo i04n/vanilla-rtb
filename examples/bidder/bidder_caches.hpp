@@ -8,12 +8,12 @@
 #ifndef BIDDER_CACHES_HPP
 #define BIDDER_CACHES_HPP
 
-#include "core/openrtb.hpp"
-#include "ad.hpp"
-#include "geo_ad.hpp"
-#include "geo.hpp"
-#include "geo_campaign.hpp"
-#include "campaign_data.hpp"
+#include "examples/matchers/ad.hpp"
+#include "examples/matchers/geo.hpp"
+#include "examples/matchers/geo_campaign.hpp"
+#include "rtb/core/openrtb.hpp"
+#include "rtb/common/perf_timer.hpp"
+#include "examples/campaign/campaign_cache.hpp"
 
 namespace vanilla {
 template<typename Config = BidderConfig>
@@ -24,7 +24,7 @@ struct BidderCaches {
             ad_data_entity(config),
             geo_data_entity(config), 
             geo_campaign_entity(config),
-            campaign_data_entity(config)
+            budget_cache(config)
         {}        
         void load() noexcept(false) {
             auto sp = std::make_shared<std::stringstream>();
@@ -43,8 +43,8 @@ struct BidderCaches {
                    geo_campaign_entity.load();
                 }
                 {
-                   perf_timer<std::stringstream> timer(sp, "\ncampaign data load");
-                   campaign_data_entity.load();
+                   perf_timer<std::stringstream> timer(sp, "\nbudget_cache load");
+                   budget_cache.load();
                 }
                 // load others
             }
@@ -54,7 +54,7 @@ struct BidderCaches {
         AdDataEntity<Config> ad_data_entity;
         GeoDataEntity<Config> geo_data_entity;
         GeoCampaignEntity<Config> geo_campaign_entity;
-        CampaignDataEntity<Config> campaign_data_entity;
+        vanilla::CampaignCache<Config> budget_cache;
 };
 }
 

@@ -29,29 +29,10 @@
 #include <boost/interprocess/sync/sharable_lock.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/tuple/tuple.hpp>
-//#include <boost/log/core.hpp>
-//#include <boost/log/trivial.hpp>
 #include <memory>
  
 #include <boost/version.hpp>
-#if BOOST_VERSION >= 105600
 #include <boost/core/demangle.hpp>
-#elif defined(__GNUC__)
-#include <cxxabi.h>
-namespace boost { namespace core {
-std::string demangle(const char* name) {
-   int status=-4; int i = BOOST_VERSION ;
-   std::unique_ptr<char, void(*)(void *)> res {
-       abi::__cxa_demangle(name, NULL, NULL, &status),
-       std::free
-   } ;
-   return (status==0) ? res.get() : name ;
-} 
-}}
-#else 
-#error "Please upgrade version of Boost to 1.56 or higher" 
-#endif
-
 #include "rtb/core/core.hpp"
 
 namespace {
@@ -66,7 +47,7 @@ auto  find(const Index & idx , Arg && arg) -> decltype(idx.find(arg)) {
 }
 
 template<typename Index , typename ...Args>
-auto  find(const Index & idx , Args && ...args) -> decltype(idx.find(std::forward<Args>(args)...)) {
+auto  find(const Index & idx , Args && ...args) -> decltype(idx.find(boost::make_tuple(std::forward<Args>(args)...))) {
     return idx.find(boost::make_tuple(std::forward<Args>(args)...));
 }
 
@@ -76,7 +57,7 @@ auto  equal_range(const Index & idx , Arg && arg) -> decltype(idx.equal_range(ar
 }
 
 template<typename Index , typename ...Args>
-auto  equal_range(const Index & idx , Args && ...args) -> decltype(idx.equal_range(std::forward<Args>(args)...)) {
+auto  equal_range(const Index & idx , Args && ...args) -> decltype(idx.equal_range(boost::make_tuple(std::forward<Args>(args)...))) {
     return idx.equal_range(boost::make_tuple(std::forward<Args>(args)...));
 }
 
@@ -109,8 +90,8 @@ struct retriever<Tag,std::vector<std::shared_ptr<Serializable>>> {
         return !entries.empty();
     }
 };
-
-template<typename Memory, template <class> class Container, size_t MEMORY_SIZE = 67108864 >
+ 
+template<typename Memory, template <class,class...> class Container, size_t MEMORY_SIZE = 67108864, typename ...T>
 class entity_cache
 {
 public:
@@ -120,7 +101,7 @@ public:
     using segment_ptr_t =  boost::scoped_ptr<segment_t>  ;
     using char_allocator = boost::interprocess::allocator<char, segment_manager_t>  ;
     using char_string = boost::interprocess::basic_string<char, std::char_traits<char>, char_allocator>   ;
-    using Container_t = Container<char_allocator> ;
+    using Container_t = Container<char_allocator,T...> ;
     using Data_t = typename Container_t::value_type;
        
     entity_cache(const std::string &name) : 
@@ -163,6 +144,7 @@ public:
     bool update( Key && key, Serializable && data, Args&& ...args) {
         bip::scoped_lock<bip::named_upgradable_mutex> guard(_named_mutex) ;
         bool is_success {false};
+        //Memory::attach([this](){attach();}); // reattach to newly created
         auto &index = _container_ptr->template get<Tag>();
         auto p = index.equal_range(boost::make_tuple(std::forward<Args>(args)...));
          while ( p.first != p.second ) {
@@ -180,9 +162,9 @@ public:
     }
  
     template<typename Key, typename Serializable>
-    bool insert( Key && key, Serializable &&data) {
+    auto insert( Key && key, Serializable &&data) {
         bip::scoped_lock<bip::named_upgradable_mutex> guard(_named_mutex) ;
-        bool is_success {false};
+        decltype(insert_data(key, data)) is_success ;
         try {
             is_success = insert_data(std::forward<Key>(key), std::forward<Serializable>(data));
         } catch (const bad_alloc_exception_t &e) {
@@ -222,61 +204,17 @@ public:
         bip::sharable_lock<bip::named_upgradable_mutex> guard(_named_mutex);
         return retriever<Tag,Serializable>()(*_container_ptr,entry,std::forward<Args>(args)...);
     }
-    
-/*************
-    template<typename Tag, typename Serializable, typename Arg>
-    bool retrieve(Serializable &entry, Arg && arg) {
+
+    template<typename Tag, typename ...Args>
+    auto retrieve_raw(Args&& ...args) {
         bip::sharable_lock<bip::named_upgradable_mutex> guard(_named_mutex);
-        auto p = _container_ptr->template get<Tag>().find(std::forward<Arg>(arg));
-        bool is_found = p != _container_ptr->end();
-        if ( is_found ) {
-            p->retrieve(entry); 
-        }
-        return is_found;
+        auto &idx = _container_ptr->template get<Tag>();
+        return equal_range(idx, std::forward<Args>(args)...);
     }
     
-    template<typename Tag, typename Serializable, typename ...Args>
-    bool retrieve(Serializable &entry, Args&& ...args) {
-        bip::sharable_lock<bip::named_upgradable_mutex> guard(_named_mutex);
-        auto p = _container_ptr->template get<Tag>().find(boost::make_tuple(std::forward<Args>(args)...));
-        bool is_found = p != _container_ptr->end();
-        if ( is_found ) {
-            p->retrieve(entry); 
-        }
-        return is_found;
-    }
-    
-    template<typename Tag, typename Serializable, typename Arg>
-    bool retrieve(std::vector<std::shared_ptr<Serializable>> &entries, Arg && arg) {
-        bip::sharable_lock<bip::named_upgradable_mutex> guard(_named_mutex);
-        bool is_found = false;
-        auto p = _container_ptr->template get<Tag>().equal_range(std::forward<Arg>(arg));
-        std::transform ( p.first, p.second, std::back_inserter(entries), [] ( const Data_t &data ) {
-            std::shared_ptr<Serializable> impl_ptr { std::make_shared<Serializable>() } ;
-            data.retrieve(*impl_ptr) ;
-            return impl_ptr;
-        });
-        return !entries.empty();
-    }
-    
-    template<typename Tag, typename Serializable, typename ...Args>
-    bool retrieve(std::vector<std::shared_ptr<Serializable>> &entries, Args&& ...args) {
-        bip::sharable_lock<bip::named_upgradable_mutex> guard(_named_mutex);
-        bool is_found = false;
-        auto p = _container_ptr->template get<Tag>().equal_range(boost::make_tuple(std::forward<Args>(args)...));
-        std::transform ( p.first, p.second, std::back_inserter(entries), [] ( const Data_t &data ) {
-            std::shared_ptr<Serializable> impl_ptr { std::make_shared<Serializable>() } ;
-            data.retrieve(*impl_ptr) ;
-            return impl_ptr;
-        });
-        return !entries.empty();
-    }
- ************/
- 
     template<typename Serializable>
     bool retrieve(std::vector<std::shared_ptr<Serializable>> &entries) {
         bip::sharable_lock<bip::named_upgradable_mutex> guard(_named_mutex);
-        bool is_found = false;
         auto p = std::make_pair(_container_ptr->begin(), _container_ptr->end());
         std::transform ( p.first, p.second, std::back_inserter(entries), [] ( const Data_t &data ) {
             std::shared_ptr<Serializable> impl_ptr { std::make_shared<Serializable>() } ;
@@ -332,11 +270,11 @@ private:
     }
  
     template<typename Key, typename Serializable>
-    bool insert_data(Key && key, Serializable &&data) {
+    auto insert_data(Key && key, Serializable &&data) {
         Memory::attach([this](){attach();});
         Data_t item(_segment_ptr->get_segment_manager());
         item.store(std::forward<Key>(key), std::forward<Serializable>(data));
-        return _container_ptr->insert(item).second;
+        return _container_ptr->insert(item);
     }
  
     template<typename Key, typename Serializable, typename Index, typename Iterator>

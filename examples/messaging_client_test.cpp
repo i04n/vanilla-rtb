@@ -21,11 +21,11 @@ using namespace vanilla::messaging;
 using namespace std::literals;
 
 namespace openrtb {
-    template<typename T> class BidResponse;
+    template<typename T> struct BidResponse;
 
     template<typename T>
     std::ostream& operator<< (std::ostream &os, const BidResponse<T> &bid) {
-        os << to_string(DSL::GenericDSL<T>().create_response(bid));
+        os << DSL::GenericDSL<T>().create_response(bid);
         return os;
     }
 }

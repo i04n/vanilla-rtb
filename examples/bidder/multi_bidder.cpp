@@ -4,17 +4,17 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/program_options.hpp>
-#include "exchange/exchange_handler.hpp"
-#include "exchange/exchange_server.hpp"
+#include "rtb/exchange/exchange_handler.hpp"
+#include "rtb/exchange/exchange_server.hpp"
 #include "CRUD/handlers/crud_dispatcher.hpp"
-#include "DSL/generic_dsl.hpp"
+#include "rtb/DSL/generic_dsl.hpp"
 #include "rtb/config/config.hpp"
-#include "core/tagged_tuple.hpp"
-#include "datacache/ad_entity.hpp"
-#include "datacache/geo_entity.hpp"
-#include "datacache/city_country_entity.hpp"
-#include "datacache/entity_cache.hpp"
-#include "datacache/memory_types.hpp"
+#include "rtb/core/tagged_tuple.hpp"
+#include "examples/datacache/ad_entity.hpp"
+#include "examples/datacache/geo_entity.hpp"
+#include "examples/datacache/city_country_entity.hpp"
+#include "rtb/datacache/entity_cache.hpp"
+#include "rtb/datacache/memory_types.hpp"
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
@@ -36,8 +36,8 @@
 #else
 #include <process.h>
 #endif
-#include "response_builder.hpp"
-#include "examples/multiexchange/user_info.hpp"
+#include "bidder.hpp"
+#include "rtb/core/user_info.hpp"
 
 #include "rtb/core/core.hpp"
 
@@ -46,10 +46,10 @@ using RtbBidderCaches = vanilla::BidderCaches<BidderConfig>;
 
 void run(short port, RtbBidderCaches &bidder_caches) {
     using namespace vanilla::messaging;
-    vanilla::ResponseBuilder<BidderConfig> response_builder(bidder_caches);
-    communicator<broadcast>().inbound(port).process<vanilla::VanillaRequest>([&response_builder](auto endpoint, vanilla::VanillaRequest vanilla_request) {
+    vanilla::Bidder<DSL::GenericDSL<>, BidderConfig> bidder(bidder_caches);
+    communicator<broadcast>().inbound(port).process<vanilla::VanillaRequest>([&bidder](auto endpoint, vanilla::VanillaRequest vanilla_request) {
         LOG(debug) << "Request from user " << vanilla_request.user_info.user_id;
-        return response_builder.build(vanilla_request);
+        return bidder.bid(vanilla_request);
     }).dispatch();
 }
 
@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     using namespace vanilla::exchange;
     using namespace std::chrono_literals;
     
-    using restful_dispatcher_t =  http::crud::crud_dispatcher<http::server::request, http::server::reply> ;
+    //using restful_dispatcher_t =  http::crud::crud_dispatcher<http::server::request, http::server::reply> ;
     namespace po = boost::program_options;   
     
     BidderConfig config([](bidder_config_data &d, po::options_description &desc){
@@ -66,8 +66,6 @@ int main(int argc, char *argv[]) {
             ("multi_bidder.log", po::value<std::string>(&d.log_file_name), "bidder_test log file name log")
             ("multi_bidder.ads_source", po::value<std::string>(&d.ads_source)->default_value("data/ads"), "ads_source file name")
             ("multi_bidder.ads_ipc_name", po::value<std::string>(&d.ads_ipc_name)->default_value("vanilla-ads-ipc"), "ads ipc name")
-            ("multi_bidder.geo_ad_source", po::value<std::string>(&d.geo_ad_source)->default_value("data/ad_geo"), "geo_ad_source file name")
-            ("multi_bidder.geo_ad_ipc_name", po::value<std::string>(&d.geo_ad_ipc_name)->default_value("vanilla-geo-ad-ipc"), "geo ad-ipc name")
             ("multi_bidder.geo_source", po::value<std::string>(&d.geo_source)->default_value("data/geo"), "geo_source file name")
             ("multi_bidder.geo_ipc_name", po::value<std::string>(&d.geo_ipc_name)->default_value("vanilla-geo-ipc"), "geo ipc name")
             ("multi_bidder.host", "bidder_test Host")
@@ -78,8 +76,8 @@ int main(int argc, char *argv[]) {
             ("multi_bidder.num_of_bidders", po::value<short>(&d.num_of_bidders)->default_value(1), "number of bidders")
             ("multi_bidder.geo_campaign_ipc_name", boost::program_options::value<std::string>(&d.geo_campaign_ipc_name)->default_value("vanilla-geo-campaign-ipc"), "geo campaign ipc name")
             ("multi_bidder.geo_campaign_source", boost::program_options::value<std::string>(&d.geo_campaign_source)->default_value("data/geo_campaign"), "geo_campaign_source file name")
-            ("multi_bidder.campaign_data_ipc_name", boost::program_options::value<std::string>(&d.campaign_data_ipc_name)->default_value("vanilla-campaign-data-ipc"), "campaign data ipc name")
-            ("multi_bidder.campaign_data_source", boost::program_options::value<std::string>(&d.campaign_data_source)->default_value("data/campaign_data"), "campaign_data_source file name")
+            ("campaign-manager.ipc_name", boost::program_options::value<std::string>(&d.ipc_name),"campaign_budget IPC name")
+            ("campaign-manager.budget_source", boost::program_options::value<std::string>(&d.campaign_budget_source)->default_value("data/campaign_budget"),"campaign_budget source file name")
         ;
     });
     

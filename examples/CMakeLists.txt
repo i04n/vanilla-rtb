@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
 
-set(CMAKE_CXX_STANDARD 14)
-
 set(REQUIRED_BOOST_LIBRARIES)
 list(APPEND REQUIRED_BOOST_LIBRARIES "log" "program_options" "system" "serialization" "date_time")
 set(Boost_USE_MULTITHREADED ON)
@@ -17,9 +15,7 @@ endif()
 
 ## Configuring vanilla-rtb
 include_directories("${PROJECT_SOURCE_DIR}"
-                    "${PROJECT_SOURCE_DIR}/rtb"
                     "${PROJECT_SOURCE_DIR}/jsonv/include"
-                    "${PROJECT_SOURCE_DIR}/redisclient/src/"
                    )
 
 add_definitions(-DBOOST_LOG_DYN_LINK -DBOOST_PROGRAM_OPTIONS_DYN_LINK)
@@ -69,9 +65,9 @@ target_link_libraries(
         ${CMAKE_THREAD_LIBS_INIT}
         )
 
-if ( NOT WIN32)
+if (NOT WIN32 AND NOT APPLE)
 set(RT_LIB rt)
-endif(NOT WIN32)
+endif()
 
 target_link_libraries(
         country_cache_test
@@ -108,4 +104,21 @@ add_subdirectory(bidder)
 add_subdirectory(loader)
 add_subdirectory(campaign)
 add_subdirectory(multiexchange)
+add_subdirectory(bidder_experimental)
+
+#Install all json files from our examples
+file(GLOB_RECURSE JSON_FILES ${CMAKE_CURRENT_SOURCE_DIR}/*.json)
+INSTALL(FILES ${JSON_FILES} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+#Install all shell scripts running our samples
+file(GLOB_RECURSE SHELL_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/*.sh)
+INSTALL(FILES ${SHELL_SCRIPTS}
+        PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/etc DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bidder/data DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/UI/CampaignBudgetsCDN/ DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/www/campaign)
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bidder/mock_exchange/ DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/mock_exchange)
+
 

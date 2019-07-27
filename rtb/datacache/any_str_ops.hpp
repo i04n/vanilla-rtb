@@ -17,7 +17,15 @@
 */
 
 #include <boost/interprocess/containers/string.hpp>
+#if BOOST_VERSION <= 106000
 #include <boost/utility/string_ref.hpp>
+namespace boost {
+    template<typename CharT, typename CharTraits>
+    using basic_string_view = boost::basic_string_ref<CharT,CharTraits>;
+}
+#else
+#include <boost/utility/string_view.hpp>
+#endif
 
 #include <string>
 
@@ -33,13 +41,13 @@ namespace ufw {
         bool operator () (X&& l, Y&& r) const { return op_(view(l), view(r)); }
 
     private:
-        Op const op_;
+        Op op_;
 
         using char_t = char;
         using char_traits_t = std::char_traits<char_t>;
         using shm_str_t = typename boost::container::basic_string<char_t, char_traits_t, Alloc>;
         using std_str_t = std::basic_string<char_t, char_traits_t, std::allocator<char_t>>;
-        using str_view_t = boost::basic_string_ref<char_t, char_traits_t>;
+        using str_view_t = boost::basic_string_view<char_t, char_traits_t>;
 
         static str_view_t view(char_t const* x) { return {x}; }
         static str_view_t view(shm_str_t const& x) { return {x.data(), x.size()}; }

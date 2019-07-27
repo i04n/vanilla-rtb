@@ -20,7 +20,7 @@
 #include "rtb/messaging/communicator.hpp"
 #include "core/tagged_tuple.hpp"
 #include <boost/memory_order.hpp>
-#include "user_info.hpp"
+#include "rtb/core/user_info.hpp"
  
 
 #include <boost/asio/ip/address.hpp>
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
  
     using string_view = std::string;
     using BidRequest = openrtb::BidRequest<string_view>;
-    using BidResponse = openrtb::BidResponse<string_view>;
+    //using BidResponse = openrtb::BidResponse<string_view>;
 
     vanilla::multiexchange::multiexchange_config config([&](multi_exchange_handler_config_data &d, po::options_description &desc){
         desc.add_options()
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
         if(request.user) {
             vanilla_request.user_info.user_id = request.user.get().buyeruid;
         }
-        vanilla::multibidder_communicator<> communicator(
+        vanilla::multibidder_communicator<DSL::GenericDSL<> > communicator(
             config.data().bidders_port, 
             std::chrono::milliseconds(config.data().bidders_response_timeout)
         );
